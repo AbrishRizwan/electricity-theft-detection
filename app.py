@@ -9,10 +9,10 @@ import os
 # Page Configuration
 # ---------------------------------------------------------
 st.set_page_config(
-    page_title="Electricity Theft Detection System",
+    page_title="Smart Grid Electricity Theft Detection",
     page_icon="⚡",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"  # Sidebar collapsed by default
 )
 
 # ---------------------------------------------------------
@@ -29,7 +29,7 @@ def process_and_extract_features(raw_df):
         consumer_ids = pd.Series([f"METER_{i+1:04d}" for i in range(len(df))])
         ts_data = df.copy()
 
-    # Linear interpolation & forward/backward fill
+    # Linear interpolation & fill
     ts_cleaned = (
         ts_data.T.interpolate(method="linear")
         .ffill()
@@ -69,62 +69,58 @@ def load_detector_model():
 try:
     model = load_detector_model()
 except Exception:
-    st.error("Error: Model artifact 'xgboost_optimized_detector.joblib' not found in root directory.")
+    st.error("⚠️ Error: Model file 'xgboost_optimized_detector.joblib' not found. Please verify the file is uploaded.")
     st.stop()
 
 # ---------------------------------------------------------
-# Sidebar Controls
-# ---------------------------------------------------------
-st.sidebar.title("⚡ Control Panel")
-threshold = st.sidebar.slider(
-    "Audit Sensitivity Threshold",
-    min_value=0.30,
-    max_value=0.75,
-    value=0.50,
-    step=0.05,
-    help="Higher threshold = targeted high-certainty audits. Lower threshold = aggressive theft sweep."
-)
-
-uploaded_file = st.sidebar.file_uploader("Upload CSV Data", type=["csv"], key="sidebar_uploader")
-
-# ---------------------------------------------------------
-# Application Header & Landing State
+# Header & Front Controls
 # ---------------------------------------------------------
 st.title("⚡ Smart Grid Electricity Theft Detection System")
 st.markdown("Automated non-technical loss (theft) detection using tree-based gradient boosting.")
 
+# Top Main-Screen Control Box
+with st.container():
+    st.markdown("### 🎛️ Control Panel")
+    ctrl_col1, ctrl_col2 = st.columns([1.5, 2.5])
+    
+    with ctrl_col1:
+        threshold = st.slider(
+            "🎯 Audit Sensitivity Threshold",
+            min_value=0.30,
+            max_value=0.80,
+            value=0.50,
+            step=0.05,
+            help="Higher threshold = targeted high-certainty audits. Lower threshold = broad theft detection sweep."
+        )
+    
+    with ctrl_col2:
+        st.write("**Dataset Input:**")
+        input_opt = st.radio(
+            "Select Data Source:",
+            ["🚀 Use Built-in 100-Meter Demo", "📁 Upload Custom CSV File"],
+            horizontal=True
+        )
+
+# ---------------------------------------------------------
+# Data Loading
+# ---------------------------------------------------------
 raw_df = None
 
-# If no file uploaded via sidebar, show prominent main-screen upload / demo loader
-if uploaded_file is not None:
-    raw_df = pd.read_csv(uploaded_file)
-else:
-    st.info("👋 **Welcome!** Upload a smart meter CSV file below, or load the built-in sample dataset to run the model.")
-    col_upload, col_demo = st.columns([2, 1])
-    
-    with col_upload:
-        main_uploaded_file = st.file_uploader("Choose a smart meter CSV file", type=["csv"], key="main_uploader")
-        if main_uploaded_file is not None:
-            raw_df = pd.read_csv(main_uploaded_file)
-            
-    with col_demo:
-        st.write("**Or test with bundled sample:**")
-        if st.button("🚀 Load 100-Meter Demo Data", use_container_width=True):
-            if os.path.exists("sample_smart_meter_data.csv"):
-                raw_df = pd.read_csv("sample_smart_meter_data.csv")
-                st.session_state["demo_loaded"] = True
-            else:
-                st.warning("Sample CSV file not found on server.")
-
-if raw_df is None and st.session_state.get("demo_loaded", False):
+if input_opt == "🚀 Use Built-in 100-Meter Demo":
     if os.path.exists("sample_smart_meter_data.csv"):
         raw_df = pd.read_csv("sample_smart_meter_data.csv")
+    else:
+        st.warning("Sample CSV file 'sample_smart_meter_data.csv' not found in root directory.")
+else:
+    uploaded_file = st.file_uploader("Upload Smart Meter CSV Data", type=["csv"])
+    if uploaded_file is not None:
+        raw_df = pd.read_csv(uploaded_file)
 
 # ---------------------------------------------------------
 # Inference & Dashboard Display
 # ---------------------------------------------------------
 if raw_df is not None:
-    with st.spinner("Extracting time-series features and scoring meters..."):
+    with st.spinner("Processing meter consumption data and calculating risk scores..."):
         consumer_ids, ts_cleaned, features = process_and_extract_features(raw_df)
         theft_probabilities = model.predict_proba(features)[:, 1]
         theft_predictions = (theft_probabilities >= threshold).astype(int)
@@ -138,56 +134,57 @@ if raw_df is not None:
         "Zero_Days_Ratio": np.round(features["zero_days_ratio"], 2)
     })
 
-    # KPI Metrics
-    st.divider()
-    col1, col2, col3, col4 = st.columns(4)
+    # KPI Summary Cards
+    st.markdown("---")
+    kpi1, kpi2, kpi3, kpi4 = st.columns(4)
     total_meters = len(results_df)
     flagged_theft = int(theft_predictions.sum())
     flagged_pct = (flagged_theft / total_meters) * 100
     avg_risk = theft_probabilities.mean() * 100
 
-    col1.metric("Total Meters Analyzed", f"{total_meters:,}")
-    col2.metric("Flagged for On-Site Audit", f"{flagged_theft:,}", delta=f"{flagged_pct:.1f}% flag rate", delta_color="inverse")
-    col3.metric("Normal Meters", f"{total_meters - flagged_theft:,}")
-    col4.metric("Average Network Risk", f"{avg_risk:.1f}%")
+    kpi1.metric("Total Meters Analyzed", f"{total_meters:,}")
+    kpi2.metric("Flagged for Audit", f"{flagged_theft:,}", delta=f"{flagged_pct:.1f}% Flag Rate", delta_color="inverse")
+    kpi3.metric("Normal Meters", f"{total_meters - flagged_theft:,}")
+    kpi4.metric("Average Network Risk", f"{avg_risk:.1f}%")
 
-    # Actionable Audit Queue Table
-    st.subheader("🔍 Prioritized Inspection Queue")
+    # Prioritized Inspection Queue
+    st.markdown("### 🔍 Prioritized Inspection Queue")
     flagged_meters = results_df[results_df["Predicted_Status"] == "Theft / Suspicious"].sort_values(
         by="Theft_Probability", ascending=False
     )
     
     if len(flagged_meters) > 0:
-        st.dataframe(flagged_meters, use_container_width=True, height=260)
+        st.dataframe(flagged_meters, use_container_width=True, height=240)
         csv_data = flagged_meters.to_csv(index=False).encode("utf-8")
         st.download_button(
             label="📥 Download Priority Audit List (CSV)",
             data=csv_data,
-            file_name="electricity_theft_audit_report.csv",
+            file_name="priority_theft_audit_list.csv",
             mime="text/csv"
         )
     else:
-        st.success(f"No meters exceeded the current sensitivity threshold ({threshold:.2f}).")
+        st.success(f"No meters flagged above the active sensitivity threshold ({threshold:.2f}).")
 
-    # Consumer Time-Series Profile Inspector
-    st.divider()
-    st.subheader("📈 Consumer Consumption Profile Inspector")
+    # Consumer Consumption Timeline Inspector
+    st.markdown("---")
+    st.markdown("### 📈 Consumer Consumption Profile Inspector")
     
-    # Filter selection: Flagged vs All
-    filter_mode = st.radio(
-        "Dropdown Selection Mode:",
-        options=["Flagged Suspects Only (Ranked by Risk)", "All Analyzed Meters"],
-        horizontal=True
-    )
-    
-    if filter_mode.startswith("Flagged") and len(flagged_meters) > 0:
-        available_options = flagged_meters["CONS_NO"].tolist()
+    view_col1, view_col2 = st.columns([1, 2])
+    with view_col1:
+        view_filter = st.radio(
+            "Filter Dropdown Accounts:",
+            ["Flagged Suspects Only (Ranked by Risk)", "All Analyzed Meters"],
+            horizontal=True
+        )
+
+    if view_filter.startswith("Flagged") and len(flagged_meters) > 0:
+        dropdown_options = flagged_meters["CONS_NO"].tolist()
     else:
-        available_options = results_df.sort_values(by="Theft_Probability", ascending=False)["CONS_NO"].tolist()
+        dropdown_options = results_df.sort_values(by="Theft_Probability", ascending=False)["CONS_NO"].tolist()
 
     selected_consumer = st.selectbox(
-        "Select a Consumer ID to inspect daily load profile:",
-        options=available_options
+        "Select Consumer ID to inspect time-series load curve:",
+        options=dropdown_options
     )
 
     if selected_consumer:
@@ -200,17 +197,17 @@ if raw_df is not None:
             x=consumer_row.index,
             y=consumer_row.values,
             mode='lines',
-            name='Daily Consumption (kWh)',
-            line=dict(color='#d62728' if consumer_prob >= threshold else '#1f77b4', width=1.5)
+            name='Daily Usage (kWh)',
+            line=dict(color='#e74c3c' if consumer_prob >= threshold else '#2ecc71', width=1.5)
         ))
 
         status_tag = "SUSPICIOUS / THEFT" if consumer_prob >= threshold else "NORMAL CONSUMER"
-        status_color = "red" if consumer_prob >= threshold else "green"
+        status_color = "#e74c3c" if consumer_prob >= threshold else "#2ecc71"
 
         fig.update_layout(
-            title=f"Consumption Timeline: <b>{selected_consumer}</b> — Status: <span style='color:{status_color}'>{status_tag} (Risk: {consumer_prob:.2%})</span>",
-            xaxis_title="Date",
-            yaxis_title="Daily Usage (kWh)",
+            title=f"Consumption Timeline: <b>{selected_consumer}</b> — <span style='color:{status_color}'>{status_tag} (Risk: {consumer_prob:.2%})</span>",
+            xaxis_title="Billing Date",
+            yaxis_title="Daily Consumption (kWh)",
             template="plotly_white",
             hovermode="x unified",
             height=420
