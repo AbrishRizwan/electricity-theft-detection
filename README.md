@@ -6,13 +6,13 @@
 
 A Streamlit app that flags suspicious electricity meters from daily consumption data using an XGBoost classifier on 13 engineered statistical features. Users can adjust the audit threshold, view a ranked inspection queue, download it as CSV, and inspect each meter's consumption curve.
 
-🔗 **Live demo:** [Streamlit link]
+🔗 **Live demo:** https://electricity-theft-detection-kw2zjrbxech93sjhz4nmn4.streamlit.app/
 
 ## 📌 Problem
 Electricity theft and meter tampering cause revenue loss for utilities, and physical inspections are expensive. A ranked list of the most suspicious meters helps focus inspections where they matter most.
 
 ## 📂 Data
-- Source: State Grid Corporation of China (SGCC) electricity theft dataset [add the link you used]
+- Source: State Grid Corporation of China (SGCC) electricity theft dataset https://www.kaggle.com/datasets/bensalem14/sgcc-dataset
 - 42,372 consumers, about 1,034 days of daily consumption each
 - 3,615 consumers (8.5%) are labelled as theft, so the data is highly imbalanced
 - The demo app uses 100 sample meters (`sample_smart_meter_data.csv`)
