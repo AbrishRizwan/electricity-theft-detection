@@ -56,17 +56,19 @@ only 20% of theft cases. The best threshold depends on the utility's inspection 
 
 ## 📁 Repository Structure
 ```
-├── app.py                              # Streamlit app
-├── xgboost_optimized_detector.joblib   # Trained model
-├── sample_smart_meter_data.csv         # 100-meter demo data
-├── <your notebook>.ipynb               # Training notebook
-└── requirements.txt
+├── app.py                                   # Streamlit app (inference and dashboard)
+├── Electricity_Theft_Detection_Project.ipynb # Data cleaning, feature engineering, model training and evaluation
+├── xgboost_optimized_detector.joblib        # Trained XGBoost model
+├── sample_smart_meter_data.csv              # 100 randomly sampled meters for the demo
+├── requirements.txt                         # Python dependencies
+└── README.md                                # Project documentation
 ```
 
 ## ▶️ Run Locally
 ```bash
-git clone https://github.com/AbrishRizwan/<repo-name>.git
-cd <repo-name>
+git clone https://github.com/AbrishRizwan/electricity-theft-detection.git
+cd electricity-theft-detection
 pip install -r requirements.txt
 streamlit run app.py
 ```
+
