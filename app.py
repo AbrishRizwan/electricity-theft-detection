@@ -145,7 +145,9 @@ if raw_df is not None:
     kpi1.metric("Total Meters Analyzed", f"{total_meters:,}")
     kpi2.metric("Flagged for Audit", f"{flagged_theft:,}", delta=f"{flagged_pct:.1f}% Flag Rate", delta_color="inverse")
     kpi3.metric("Normal Meters", f"{total_meters - flagged_theft:,}")
-    kpi4.metric("Average Network Risk", f"{avg_risk:.1f}%")
+    kpi4.metric("Average Risk Score", f"{avg_risk:.1f}%",
+            help="Mean model score, not a calibrated probability. The real theft rate in the training data is about 8.5%.")
+    st.caption("The model is tuned to catch theft (high recall), so it flags more meters than the true theft rate (~8.5%). Flagged meters need inspection; they are not confirmed theft.")
 
     # Prioritized Inspection Queue
     st.markdown("### 🔍 Prioritized Inspection Queue")
